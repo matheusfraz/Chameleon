@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: chameleon-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: chameleon
+      POSTGRES_PASSWORD: chameleon
+      POSTGRES_DB: chameleon
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chameleon -d chameleon"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:

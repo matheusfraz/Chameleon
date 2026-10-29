@@ -11,3 +11,161 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum EventType {
+  NEW_SUBSCRIBER
+  NEW_MEMBER
+  LIVE_CHAT_MESSAGE
+
+  @@map("event_type")
+}
+
+enum EventSource {
+  REAL
+  SIMULATED
+
+  @@map("event_source")
+}
+
+enum EventStatus {
+  DISPATCHED // alerta enviado ao overlay
+  NO_ALERT // não existe configuração para o tipo (RN-02)
+  DISABLED // existe configuração, mas está desligada
+
+  @@map("event_status")
+}
+
+enum YoutubeConnectionStatus {
+  CONNECTED
+  EXPIRED
+  REVOKED
+  ERROR
+
+  @@map("youtube_connection_status")
+}
+
+enum MembersAccess {
+  UNKNOWN
+  AVAILABLE
+  UNAVAILABLE
+
+  @@map("members_access")
+}
+
+model User {
+  id                String             @id @default(uuid(7)) @db.Uuid
+  googleId          String             @unique @map("google_id")
+  email             String
+  name              String
+  avatarUrl         String?            @map("avatar_url")
+  overlayToken      String             @unique @map("overlay_token")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  youtubeConnection YoutubeConnection?
+  assets            Asset[]
+  templates         Template[]
+  alertConfigs      AlertConfig[]
+  events            Event[]
+
+  @@map("users")
+}
+
+model YoutubeConnection {
+  id                      String                  @id @default(uuid(7)) @db.Uuid
+  userId                  String                  @unique @map("user_id") @db.Uuid
+  channelId               String                  @map("channel_id")
+  channelTitle            String                  @map("channel_title")
+  channelThumbnailUrl     String?                 @map("channel_thumbnail_url")
+  accessTokenEnc          String                  @map("access_token_enc")
+  refreshTokenEnc         String                  @map("refresh_token_enc")
+  accessTokenExpiresAt    DateTime                @map("access_token_expires_at")
+  scopes                  String[]
+  status                  YoutubeConnectionStatus @default(CONNECTED)
+  lastError               String?                 @map("last_error")
+  subscribersCheckedUntil DateTime?               @map("subscribers_checked_until")
+  membersAccess           MembersAccess           @default(UNKNOWN) @map("members_access")
+  createdAt               DateTime                @default(now()) @map("created_at")
+  updatedAt               DateTime                @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("youtube_connections")
+}
+
+model Asset {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  ownerId    String?  @map("owner_id") @db.Uuid
+  storageKey String   @unique @map("storage_key")
+  mimeType   String   @map("mime_type")
+  sizeBytes  Int      @map("size_bytes")
+  width      Int?
+  height     Int?
+  durationMs Int?     @map("duration_ms")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  owner     User?      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  templates Template[]
+
+  @@index([ownerId])
+  @@map("assets")
+}
+
+model Template {
+  id                String   @id @default(uuid(7)) @db.Uuid
+  ownerId           String?  @map("owner_id") @db.Uuid
+  systemKey         String?  @unique @map("system_key")
+  name              String
+  assetId           String   @map("asset_id") @db.Uuid
+  layout            Json
+  defaultDurationMs Int      @default(5000) @map("default_duration_ms")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  owner        User?         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  asset        Asset         @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  alertConfigs AlertConfig[]
+
+  @@index([ownerId])
+  @@index([assetId])
+  @@map("templates")
+}
+
+model AlertConfig {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  eventType  EventType @map("event_type")
+  templateId String    @map("template_id") @db.Uuid
+  slotTexts  Json      @map("slot_texts")
+  durationMs Int       @map("duration_ms")
+  enabled    Boolean   @default(true)
+  settings   Json      @default("{}")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template Template @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  events   Event[]
+
+  @@unique([userId, eventType])
+  @@index([templateId])
+  @@map("alert_configs")
+}
+
+model Event {
+  id            String      @id @default(uuid(7)) @db.Uuid
+  userId        String      @map("user_id") @db.Uuid
+  type          EventType
+  source        EventSource
+  externalId    String?     @map("external_id")
+  payload       Json
+  status        EventStatus
+  alertConfigId String?     @map("alert_config_id") @db.Uuid
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  alertConfig AlertConfig? @relation(fields: [alertConfigId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, type, externalId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("events")
+}
