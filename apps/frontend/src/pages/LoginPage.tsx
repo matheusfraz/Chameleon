@@ -1,13 +1,19 @@
-import { useState } from "react";
-import { Link } from "react-router";
-import { Eye, EyeOff } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router";
+import { Loader2 } from "lucide-react";
 import chameleon from "@/assets/chameleon.png";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
-const underlineInput =
-  "h-11 rounded-none border-0 border-b border-border bg-transparent px-3 shadow-none focus-visible:border-primary focus-visible:ring-0 dark:bg-transparent max-sm:h-12 max-sm:text-base";
+// Rota do backend que inicia o OAuth com o Google
+const GOOGLE_LOGIN_URL = "/api/auth/google";
+
+// Códigos que o callback do backend pode devolver em /login?error=...
+const LOGIN_ERRORS: Record<string, string> = {
+  access_denied: "O acesso foi cancelado. Tente novamente quando quiser.",
+  email_not_verified: "Essa conta Google não tem o e-mail verificado.",
+  session_expired: "Sua sessão expirou. Entre novamente.",
+};
+const FALLBACK_ERROR = "Não foi possível entrar com o Google. Tente novamente.";
 
 function GoogleIcon() {
   return (
@@ -33,15 +39,39 @@ function GoogleIcon() {
 }
 
 export function LoginPage() {
-  const [showPassword, setShowPassword] = useState(false);
+  const [searchParams] = useSearchParams();
+  const [redirecting, setRedirecting] = useState(false);
+
+  const errorCode = searchParams.get("error");
+  const errorMessage = errorCode
+    ? (LOGIN_ERRORS[errorCode] ?? FALLBACK_ERROR)
+    : null;
+
+  // Ao voltar do Google pelo botão "voltar", o navegador pode restaurar a
+  // página do cache com o botão ainda carregando. Isso reseta o estado.
+  useEffect(() => {
+    const reset = (e: PageTransitionEvent) => {
+      if (e.persisted) setRedirecting(false);
+    };
+    window.addEventListener("pageshow", reset);
+    return () => window.removeEventListener("pageshow", reset);
+  }, []);
+
+  function handleGoogleLogin() {
+    setRedirecting(true);
+    window.location.assign(GOOGLE_LOGIN_URL);
+  }
 
   return (
     <div className="flex min-h-dvh items-stretch justify-center max-sm:px-7 max-sm:pb-[calc(3rem+env(safe-area-inset-bottom))] sm:items-center sm:p-6 2xl:p-8">
-      <div className="grid min-h-[calc(100dvh-3rem-env(safe-area-inset-bottom))] w-full grid-rows-[auto_1fr] animate-in fade-in slide-in-from-bottom-4 duration-700 overflow-hidden bg-transparent sm:min-h-0 sm:max-w-md sm:grid-rows-none sm:rounded-2xl sm:bg-[#030D2B] sm:shadow-[0_0_120px_-20px_rgba(37,99,235,0.55)] md:min-h-135 md:max-w-4xl md:grid-cols-2 2xl:min-h-155 2xl:max-w-5xl md:short:zoom-[0.95] md:shorter:zoom-[0.88] md:shortest:zoom-[0.8]">
-        {/* Topo (só celular): nome sobre o fundo animado */}
-        <div className="px-8 pb-24 pt-[calc(3rem+env(safe-area-inset-top))] text-center sm:hidden">
+      <div className="grid min-h-[calc(100dvh-3rem-env(safe-area-inset-bottom))] w-full grid-rows-[auto_auto] max-sm:content-center animate-in fade-in slide-in-from-bottom-4 duration-700 overflow-hidden bg-transparent sm:min-h-0 sm:max-w-md sm:grid-rows-none sm:rounded-2xl sm:bg-[#030D2B] sm:shadow-[0_0_120px_-20px_rgba(37,99,235,0.55)] md:min-h-135 md:max-w-4xl md:grid-cols-2 2xl:min-h-155 2xl:max-w-5xl md:short:zoom-[0.95] md:shorter:zoom-[0.88] md:shortest:zoom-[0.8]">
+        {/* Topo (só celular): nome e frase sobre o fundo animado */}
+        <div className="flex flex-col items-center justify-center gap-4 px-6 pb-24 pt-[calc(2.5rem+env(safe-area-inset-top))] text-center sm:hidden shortest:gap-3 shortest:pt-[calc(2rem+env(safe-area-inset-top))]">
           <p className="text-sm font-medium uppercase tracking-[0.45em] text-white/70">
             Chameleon
+          </p>
+          <p className="max-w-[15ch] text-balance text-3xl font-semibold leading-tight tracking-tight text-white shortest:text-2xl">
+            Alertas animados para suas lives
           </p>
         </div>
 
@@ -65,8 +95,8 @@ export function LoginPage() {
           </p>
         </div>
 
-        {/* Formulário: card flutuante no celular */}
-        <div className="relative z-10 -mt-6 flex flex-col justify-between gap-8 rounded-t-3xl bg-card p-6 pt-8 max-sm:rounded-[2rem] max-sm:pt-16 max-sm:shadow-[0_0_80px_-24px_rgba(52,211,153,0.4)] sm:p-10 md:mt-0 md:rounded-none 2xl:gap-10 2xl:p-14">
+        {/* Conteúdo: card flutuante no celular */}
+        <div className="relative z-10 -mt-6 flex flex-col justify-between gap-8 rounded-t-3xl bg-card p-6 pt-8 max-sm:gap-6 max-sm:rounded-[2rem] max-sm:px-6 max-sm:pb-7 max-sm:pt-16 max-sm:shadow-[0_0_80px_-24px_rgba(52,211,153,0.4)] sm:p-10 md:mt-0 md:rounded-none 2xl:gap-10 2xl:p-14">
           {/* Selo da logo: metade sobre a borda do card (só celular) */}
           <div className="absolute -top-12 left-1/2 -translate-x-1/2 sm:hidden">
             <div
@@ -80,100 +110,52 @@ export function LoginPage() {
             />
           </div>
 
-          <div className="flex flex-1 flex-col justify-center gap-6 2xl:gap-8">
-            <h1 className="text-center text-3xl font-semibold tracking-tight 2xl:text-4xl">
-              Login
-            </h1>
-            <p className="-mt-4 text-center text-sm text-muted-foreground sm:hidden">
-              Entre para configurar seus alertas
-            </p>
-
-            <form
-              className="flex flex-col gap-5 2xl:gap-6"
-              onSubmit={(e) => e.preventDefault()}
-            >
-              <div>
-                <Label htmlFor="email" className="sr-only">
-                  E-mail
-                </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="E-mail"
-                  autoComplete="off"
-                  className={underlineInput}
-                />
-              </div>
-
-              <div className="relative">
-                <Label htmlFor="password" className="sr-only">
-                  Senha
-                </Label>
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Senha"
-                  autoComplete="new-password"
-                  className={`${underlineInput} pr-12 sm:pr-40`}
-                />
-                <a
-                  href="#"
-                  className="absolute right-11 top-0 flex h-11 items-center text-xs text-primary hover:underline max-sm:hidden"
-                >
-                  Esqueceu a senha?
-                </a>
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
-                  aria-pressed={showPassword}
-                  className="absolute right-1 top-2 flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:top-1.5"
-                >
-                  {showPassword ? (
-                    <EyeOff className="size-4" />
-                  ) : (
-                    <Eye className="size-4" />
-                  )}
-                </button>
-                <a
-                  href="#"
-                  className="mt-3 block text-right text-sm text-primary hover:underline sm:hidden"
-                >
-                  Esqueceu a senha?
-                </a>
-              </div>
-
-              <Button
-                type="submit"
-                size="lg"
-                className="mt-1 h-12 w-full rounded-xl text-base sm:h-11 2xl:mt-2 2xl:h-12"
-              >
-                Entrar
-              </Button>
-            </form>
-
-            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-              <span className="h-px flex-1 bg-border" />
-              ou
-              <span className="h-px flex-1 bg-border" />
+          <div className="flex flex-1 flex-col justify-center gap-8 max-sm:gap-6 2xl:gap-10">
+            <div className="flex flex-col gap-2 text-center 2xl:gap-3">
+              <h1 className="text-3xl font-semibold tracking-tight 2xl:text-4xl">
+                Bem-vindo
+              </h1>
+              <p className="text-sm text-muted-foreground 2xl:text-base">
+                Entre para configurar seus alertas
+              </p>
             </div>
 
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              className="h-12 w-full rounded-xl text-base sm:h-11 2xl:h-12"
-            >
-              <GoogleIcon />
-              Continuar com Google
-            </Button>
+            {errorMessage && (
+              <p
+                role="alert"
+                className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-center text-sm text-balance text-destructive"
+              >
+                {errorMessage}
+              </p>
+            )}
+
+            <div className="flex flex-col gap-4">
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                onClick={handleGoogleLogin}
+                disabled={redirecting}
+                aria-busy={redirecting}
+                className="h-12 w-full gap-3 rounded-xl text-base sm:h-11 2xl:h-12"
+              >
+                {redirecting ? (
+                  <Loader2 className="size-4.5 animate-spin" aria-hidden />
+                ) : (
+                  <GoogleIcon />
+                )}
+                {redirecting ? "Redirecionando…" : "Continuar com o Google"}
+              </Button>
+
+              <p className="text-center text-xs leading-relaxed text-muted-foreground 2xl:text-sm">
+                Usamos sua conta Google apenas para identificar você. O canal do
+                YouTube é conectado depois, no painel.
+              </p>
+            </div>
           </div>
 
-          <p className="text-center text-sm">
-            Não tem uma conta?{" "}
-            <Link to="/signup" className="text-primary hover:underline">
-              Cadastre-se
-            </Link>
+          <p className="text-center text-sm text-muted-foreground max-sm:border-t max-sm:border-border max-sm:pt-5 max-sm:text-xs">
+            Primeira vez aqui? Sua conta é criada no primeiro acesso.
           </p>
         </div>
       </div>
